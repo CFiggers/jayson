@@ -3,6 +3,54 @@
 (defmacro- letv [bindings & body]
   ~(do ,;(seq [[k v] :in (partition 2 bindings)] ['var k v]) ,;body))
 
+(defn- read-hex [n] 
+    (scan-number (string "0x" n)))
+
+(defn- check-utf-16 [capture]
+  (let [u (read-hex capture)]
+    (if (and (>= u 0xD800)
+             (<= u 0xDBFF))
+      capture 
+      false)))
+
+(def- utf-8->bytes 
+  (peg/compile
+   ~{:double-u-esc (/ (* "\\u" (cmt (<- 4) ,|(check-utf-16 $)) "\\u" (<- 4))
+                      ,|(+ (blshift (- (read-hex $0) 0xD800) 10)
+                           (- (read-hex $1) 0xDC00) 0x10000))
+     :single-u-esc (/ (* "\\u" (<- 4)) ,|(read-hex $))
+     :unicode-esc  (/ (+ :double-u-esc :single-u-esc)
+                      ,|(string/from-bytes
+                         ;(cond
+                           (<= $ 0x7f) [$]
+                           (<= $ 0x7ff)
+                           [(bor (band (brshift $  6) 0x1F) 0xC0)
+                            (bor (band (brshift $  0) 0x3F) 0x80)]
+                           (<= $ 0xffff)
+                           [(bor (band (brshift $ 12) 0x0F) 0xE0)
+                            (bor (band (brshift $  6) 0x3F) 0x80)
+                            (bor (band (brshift $  0) 0x3F) 0x80)]
+                             # Otherwise
+                           [(bor (band (brshift $ 18) 0x07) 0xF0)
+                            (bor (band (brshift $ 12) 0x3F) 0x80)
+                            (bor (band (brshift $  6) 0x3F) 0x80)
+                            (bor (band (brshift $  0) 0x3F) 0x80)])))
+     :escape       (/ (* "\\" (<- (set "avbnfrt\"\\/")))
+                      ,|(get {"a" "\a" "v" "\v" "b" "\b"
+                              "n" "\n" "f" "\f" "r" "\r"
+                              "t" "\t"} $ $))
+     :main         (some (+ :unicode-esc :escape (<- 1)))}))
+
+(comment
+  
+  "👎"
+  (json/encode "👎")
+  (json/decode (json/encode "👎"))
+  
+  (encode "👎")
+  (decode (encode "👎"))
+  )
+
 (defn decode 
   ``
   Returns a janet object after parsing JSON. If keywords is truthy,
@@ -10,15 +58,6 @@
   will become nil instead of the keyword :json/null.
   ``
   [json-source &opt keywords nils] 
-
-  (def unicode-map
-    {"00" "\0" "01" "\x01" "02" "\x02" "03" "\x03" "04" "\x04"
-     "05" "\x05" "06" "\x06" "07" "\a" "08" "\b" "09" "\t"
-     "0A" "\n" "0B" "\v" "0C" "\f" "0D" "\r" "0E" "\x0E"
-     "0F" "\x0F" "10" "\x10" "11" "\x11" "12" "\x12" "13" "\x13"
-     "14" "\x14" "15" "\x15" "16" "\x16" "17" "\x17" "18" "\x18"
-     "19" "\x19" "1A" "\x1A" "1B" "\e" "1C" "\x1C" "1D" "\x1D"
-     "1E" "\x1E" "1F" "\x1F"})
 
   (def json-parser 
     {:null (if nils
@@ -29,8 +68,7 @@
      :number ~(/ (<- (* (? "-") :d+ (? (* "." :d+)))) ,|(scan-number $))
      :string ~(/ (* "\"" (<- (to (* (> -1 (not "\\")) "\"")))
                     (* (> -1 (not "\\")) "\""))
-                 ,|(string (peg/replace '(* "\\u00" (<- 2))
-                                 (fn [_ a] (get unicode-map a)) $))) 
+                 ,|(string/join (peg/match utf-8->bytes $))) 
      :array ~(/ (* "[" :s* (? (* :value (any (* :s* "," :value)))) "]") ,|(array ;$&))
      :key-value (if keywords
                   ~(* :s* (/ :string ,|(keyword $)) :s* ":" :value)
@@ -43,29 +81,42 @@
   
   (first (peg/match (peg/compile json-parser) json-source)))
 
-(defn encode-string [x]
-  (let [escape-lookup {"\\" "\\"
-                       "\"" "\""
-                       "\a" "\\u0007"
-                       "\b" "\\u0008"
-                       "\t" "\\u0009"
-                       "\n" "\\u000A"
-                       "\v" "\\u000B"
-                       "\f" "\\u000C"
-                       "\r" "\\u000D"}
-        escape-char |(or (escape-lookup $) (string/format "u%04x" $))
-        escape-seq-peg ~{:ascii0to31 (range "\0\x1F")
-                         :backslash "\\"
-                         :quote "\""
-                         :main (+ :ascii0to31 :backslash :quote)}
-        body (peg/replace-all escape-seq-peg escape-char x)]
-    (string "\"" body "\"")))
+(def- bytes->utf-8
+  (peg/compile
+   ~{:four-byte  (/ (* (<- (range "\xf0\xff")) (<- 1) (<- 1) (<- 1))
+                    ,|(bor (blshift (band (first $0) 0x07) 18)
+                           (blshift (band (first $1) 0x3F) 12)
+                           (blshift (band (first $2) 0x3F) 6)
+                           (blshift (band (first $3) 0x3F) 0)))
+     :three-byte (/ (* (<- (range "\xe0\xef")) (<- 1) (<- 1))
+                    ,|(bor (blshift (band (first $0) 0x0F) 12)
+                           (blshift (band (first $1) 0x3F) 6)
+                           (blshift (band (first $2) 0x3F) 0)))
+     :two-byte   (/ (* (<- (range "\x80\xdf")) (<- 1))
+                    ,|(bor (blshift (band (first $0) 0x1F) 6)
+                           (blshift (band (first $1) 0x3F) 0)))
+     :multi-byte (/ (+ :two-byte :three-byte :four-byte)
+                    ,|(if (< $ 0x10000) 
+                        (string/format "\\u%04X" $)
+                        (string/format "\\u%04X\\u%04X" 
+                                       (+ (brshift (- $ 0x10000) 10) 0xD800) 
+                                       (+ (band (- $ 0x10000) 0x3FF) 0xDC00))))
+     :one-byte   (<- (range "\x20\x7f"))
+     :0to31      (/ (<- (range "\0\x1F"))
+                    ,|(or ({"\a" "\\u0007" "\b" "\\u0008"
+                            "\t" "\\u0009" "\n" "\\u000A"
+                            "\v" "\\u000B" "\f" "\\u000C"
+                            "\r" "\\u000D"} $)
+                          (string/format "\\u%04X" (first $))))
+     :backslash  (/ (<- "\\") "\\\\")
+     :quote      (/ (<- "\"") "\\\"")
+     :main       (some (+ :0to31 :backslash :quote :one-byte :multi-byte))}))
 
 (defn- encodeone [encoder x depth]
   (if (> depth 1024) (error "recurred too deeply"))
   (cond
     (= x :json/null) "null"
-    (bytes? x) (encode-string x)
+    (bytes? x) (string "\"" (string/join (peg/match bytes->utf-8 x)) "\"")
     (indexed? x) (string "[" (string/join (map |(encodeone encoder $ (inc depth)) x) ",") "]")
     (dictionary? x) (string "{" (string/join
                                  (seq [[k v] :in (pairs x)]

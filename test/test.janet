@@ -87,8 +87,8 @@
       @"\"hello\""
       @"\"hello\""
       @"\"hello\""
-      @"\"\xF0\x9F\x91\x8E\""
-      @"\"\xC5\xA1\xC4\x8D\""
+      @"\"\\uD83D\\uDC4E\""
+      @"\"\\u0161\\u010D\""
       @"[1,2,3]"
       @"[\"array\",\"of\",\"keywords\"]"
       @"{\"a\":1}"
@@ -155,8 +155,12 @@
          "ᚠᛇᚻ᛫ᛒᛦᚦ᛫ᚠᚱᚩᚠᚢᚱ᛫ᚠᛁᚱᚪ᛫ᚷᛖᚻᚹᛦᛚᚳᚢᛗ
  ᛋᚳᛖᚪᛚ᛫ᚦᛖᚪᚻ᛫ᛗᚪᚾᚾᚪ᛫ᚷᛖᚻᚹᛦᛚᚳ᛫ᛗᛁᚳᛚᚢᚾ᛫ᚻᛦᛏ᛫ᛞᚫᛚᚪᚾ
  ᚷᛁᚠ᛫ᚻᛖ᛫ᚹᛁᛚᛖ᛫ᚠᚩᚱ᛫ᛞᚱᛁᚻᛏᚾᛖ᛫ᛞᚩᛗᛖᛋ᛫ᚻᛚᛇᛏᚪᚾ᛬") true))
-(deftest "test json 11" (check-object @["šč"]))
-(deftest "test json 12" (check-object "👎"))
+
+(deftest "test json 11" 
+  (test (check-object @["šč"]) true))
+
+(deftest "test json 12" 
+  (test (check-object "👎") true))
 
 # Decoding utf-8 strings 
 (deftest "utf-8 strings" 
@@ -182,17 +186,17 @@
      100
      true
      false
-     (range 100) 
+     (range 100)
      @{"two" 2 "four" 4 "six" 6}
      @{"hello" "world"}
      @{"john" 1 "billy" "joe" "a" @[1 2 3 4 -1000]}
-    #  @{"john" 1 "∀abcd" "joe" "a" @[1 2 3 4 -1000]}
-#      "ᚠᛇᚻ᛫ᛒᛦᚦ᛫ᚠᚱᚩᚠᚢᚱ᛫ᚠᛁᚱᚪ᛫ᚷᛖᚻᚹᛦᛚᚳᚢᛗ
-#  ᛋᚳᛖᚪᛚ᛫ᚦᛖᚪᚻ᛫ᛗᚪᚾᚾᚪ᛫ᚷᛖᚻᚹᛦᛚᚳ᛫ᛗᛁᚳᛚᚢᚾ᛫ᚻᛦᛏ᛫ᛞᚫᛚᚪᚾ
-#  ᚷᛁᚠ᛫ᚻᛖ᛫ᚹᛁᛚᛖ᛫ᚠᚩᚱ᛫ᛞᚱᛁᚻᛏᚾᛖ᛫ᛞᚩᛗᛖᛋ᛫ᚻᛚᛇᛏᚪᚾ᛬"
-    #  @["šč"]
-    # "👎"
-     ])
+     @{"john" 1 "∀abcd" "joe" "a" @[1 2 3 4 -1000]}
+     "ᚠᛇᚻ᛫ᛒᛦᚦ᛫ᚠᚱᚩᚠᚢᚱ᛫ᚠᛁᚱᚪ᛫ᚷᛖᚻᚹᛦᛚᚳᚢᛗ
+ ᛋᚳᛖᚪᛚ᛫ᚦᛖᚪᚻ᛫ᛗᚪᚾᚾᚪ᛫ᚷᛖᚻᚹᛦᛚᚳ᛫ᛗᛁᚳᛚᚢᚾ᛫ᚻᛦᛏ᛫ᛞᚫᛚᚪᚾ
+ ᚷᛁᚠ᛫ᚻᛖ᛫ᚹᛁᛚᛖ᛫ᚠᚩᚱ᛫ᛞᚱᛁᚻᛏᚾᛖ᛫ᛞᚩᛗᛖᛋ᛫ᚻᛚᛇᛏᚪᚾ᛬"
+     @["šč"]
+     "👎"
+     ]) 
 
   (test (deep= (map |(json/encode $) strs)
                (map |(encode $) strs)) true)
@@ -204,3 +208,84 @@
                (map |(json/decode (json/encode $)) strs)) true)
   (test (deep= (map |(json/decode (encode $)) strs)
                (map |(decode (json/encode $)) strs)) true))
+
+(deftest "misc0"
+  (test (deep= (json/encode "šč")
+               (encode "šč")) true)
+  (test (deep= (json/decode (json/encode "šč"))
+               (json/decode (encode "šč"))) true)
+  (test (deep= (decode (json/encode "šč"))
+               (decode (encode "šč"))) true)
+  (test (deep= (json/decode (json/encode "šč"))
+               (decode (encode "šč"))) true)
+  (test (deep= (decode (json/encode "šč"))
+               (json/decode (encode "šč"))) true))
+
+(deftest "misc1"
+  (test (deep= (json/encode @["šč"])
+               (encode @["šč"])) true)
+  (test (deep= (json/decode (json/encode @["šč"]))
+              (json/decode (encode @["šč"]))) true)
+  (test (deep= (decode (json/encode @["šč"]))
+               (decode (encode @["šč"]))) true)
+  (test (deep= (json/decode (json/encode @["šč"]))
+               (decode (encode @["šč"]))) true)
+  (test (deep= (decode (json/encode @["šč"]))
+               (json/decode (encode @["šč"]))) true))
+
+(comment
+
+  (peg/match utf-8->bytes "\\u0161\\u010D")
+
+  (def high (scan-number (string "0x" "0161")))
+  (def low (scan-number (string "0x" "010D")))
+
+  (>= high 0xDC00)
+
+
+
+  (def codepoint (+ (blshift (- high 0xD800) 10)
+                    (- low 0xDC00)
+                    0x10000))
+  
+  (<= codepoint 0x7f)
+
+
+
+  )
+
+(deftest "misc2"
+  (test (deep= (json/encode "👎")
+               (encode "👎")) true)
+  (test (deep= (json/decode (json/encode "👎"))
+               (json/decode (encode "👎"))) true)
+  (test (deep= (decode (json/encode "👎"))
+               (decode (encode "👎"))) true)
+  (test (deep= (json/decode (json/encode "👎"))
+               (decode (encode "👎"))) true)
+  (test (deep= (decode (json/encode "👎"))
+               (json/decode (encode "👎"))) true))
+
+(comment
+
+  (peg/match utf-8->bytes "\\uD83D\\uDC4E")
+
+  (def high (scan-number (string "0x" "D83D")))
+  (def low (scan-number (string "0x" "DC4E")))
+
+  (def codepoint (+ (blshift (- high 0xD800) 10)
+                    (- low 0xDC00)
+                    0x10000))
+  
+  (<= codepoint 0x7f)
+  (<= codepoint 0x7ff)
+  (<= codepoint 0xffff)
+  (<= codepoint )
+
+  (string/from-bytes ;[(bor (band (brshift codepoint 18) 0x07) 0xF0)
+                      (bor (band (brshift codepoint 12) 0x3F) 0x80)
+                      (bor (band (brshift codepoint  6) 0x3F) 0x80)
+                      (bor (band (brshift codepoint  0) 0x3F) 0x80)])
+
+  )
+
