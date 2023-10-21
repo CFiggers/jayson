@@ -1,3 +1,6 @@
 (declare-project
   :name "jayson"
-  :description "TODO: Write a cool description")
+  :description "JSON encoder and decoder in pure Janet")
+
+(declare-source
+ :source "src/jayson.janet")
