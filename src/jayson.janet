@@ -76,7 +76,7 @@
      :object ~(/ (* "{" :s* (? (* :key-value (any (* :s* "," :key-value)))) "}")
                  ,|(from-pairs (partition 2 $&)))
      :value ~(* :s* (+ :null :bool-t :bool-f :number :string :array :object) :s*)
-     :unmatched ~(/ (<- (some 1)) ,|[:unmatched $])
+     :unmatched ~(/ (<- (to (+ :value -1))) ,|[:unmatched $])
      :main ~(some (+ :value "\n" :unmatched))})
   
   (first (peg/match (peg/compile json-parser) json-source)))
@@ -112,15 +112,16 @@
      :quote      (/ (<- "\"") "\\\"")
      :main       (+ (some (+ :0to31 :backslash :quote :one-byte :multi-byte)) -1)}))
 
-(defn- encodeone [encoder x depth]
+(defn- encodeone [x depth]
   (if (> depth 1024) (error "recurred too deeply"))
   (cond
     (= x :json/null) "null"
+    (= x nil) "null"
     (bytes? x) (string "\"" (string/join (peg/match bytes->utf-8 x)) "\"")
-    (indexed? x) (string "[" (string/join (map |(encodeone encoder $ (inc depth)) x) ",") "]")
+    (indexed? x) (string "[" (string/join (map |(encodeone $ (inc depth)) x) ",") "]")
     (dictionary? x) (string "{" (string/join
                                  (seq [[k v] :in (pairs x)]
-                                   (string (encodeone encoder k (inc depth)) ":" (encodeone encoder v (inc depth)))) ",") "}")
+                                   (string "\"" (string/join (peg/match bytes->utf-8 k)) "\"" ":" (encodeone v (inc depth)))) ",") "}")
     (case (type x)
       :nil "null"
       :boolean (string x)
@@ -129,17 +130,12 @@
 
 (defn encode 
   `` 
-  Encodes a janet value in JSON (utf-8). `tab` and `newline` are optional byte sequence which are used 
-  to format the output JSON. If `buf` is provided, the formated JSON is append to `buf` instead of a new buffer.
+  Encodes a janet value in JSON (utf-8). If `buf` is provided, the formated JSON is append to `buf` instead of a new buffer.
   Returns the modifed buffer.
   ``
-  [x &opt tab newline buf]
+  [x &opt buf]
   
-  (letv [encoder {:indent 0
-                  :buffer @""
-                  :tab tab
-                  :newline newline}
-         ret (encodeone encoder x 0)]
+  (letv [ret (encodeone x 0)]
         (if (and buf (buffer? buf))
           (buffer/push ret)
           (thaw ret))))
