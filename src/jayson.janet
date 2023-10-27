@@ -41,16 +41,6 @@
                               "t" "\t"} $ $))
      :main         (+ (some (+ :unicode-esc :escape (<- 1))) -1)}))
 
-(comment
-  
-  "👎"
-  (json/encode "👎")
-  (json/decode (json/encode "👎"))
-  
-  (encode "👎")
-  (decode (encode "👎"))
-  )
-
 (defn decode 
   ``
   Returns a janet object after parsing JSON. If keywords is truthy,
