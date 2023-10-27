@@ -39,7 +39,7 @@
                       ,|(get {"a" "\a" "v" "\v" "b" "\b"
                               "n" "\n" "f" "\f" "r" "\r"
                               "t" "\t"} $ $))
-     :main         (some (+ :unicode-esc :escape (<- 1)))}))
+     :main         (+ (some (+ :unicode-esc :escape (<- 1))) -1)}))
 
 (comment
   
@@ -110,7 +110,7 @@
                           (string/format "\\u%04X" (first $))))
      :backslash  (/ (<- "\\") "\\\\")
      :quote      (/ (<- "\"") "\\\"")
-     :main       (some (+ :0to31 :backslash :quote :one-byte :multi-byte))}))
+     :main       (+ (some (+ :0to31 :backslash :quote :one-byte :multi-byte)) -1)}))
 
 (defn- encodeone [encoder x depth]
   (if (> depth 1024) (error "recurred too deeply"))
