@@ -43,9 +43,9 @@
 
 (defn decode 
   ``
-  Returns a janet object after parsing JSON. If keywords is truthy,
-  string keys will be converted to keywords. If nils is truthy, null
-  will become nil instead of the keyword :json/null.
+  Returns a janet object after parsing JSON. If `keywords` is truthy,
+  string keys will be converted to keywords. If `nils` is truthy, `null`
+  will become `nil` instead of the keyword `:json/null`.
   ``
   [json-source &opt keywords nils] 
 
@@ -120,8 +120,8 @@
 
 (defn encode 
   `` 
-  Encodes a janet value in JSON (utf-8). If `buf` is provided, the formated JSON is append to `buf` instead of a new buffer.
-  Returns the modifed buffer.
+  Encodes a janet value in JSON (utf-8). If `buf` is provided, the formated 
+  JSON is append to `buf` instead of a new buffer. Returns the modifed buffer.
   ``
   [x &opt buf]
   
